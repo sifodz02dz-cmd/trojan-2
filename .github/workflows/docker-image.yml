@@ -1,18 +1,100 @@
-name: Temp Public Server
+#!/bin/bash
 
-on: workflow_dispatch
+# ===============================
+# VPS + SSH + PYTHON + PHP + CLOUDFLARE FREE TUNNEL
+# User: sifodz
+# Pass: sssddd333
+# ===============================
 
-jobs:
-  run:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install cloudflared
-        run: |
-          wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-          chmod +x cloudflared-linux-amd64
-          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+set -e
 
-      - name: Start simple server
-        run: |
-          python3 -m http.server 8080 &
-          cloudflared tunnel --url http://localhost:8080
+echo "🔄 تحديث النظام..."
+apt update -y && apt upgrade -y
+
+echo "📦 تثبيت الحزم الأساسية..."
+apt install -y sudo openssh-server apache2 php python3 python3-pip curl unzip tmux
+
+echo "👤 إنشاء المستخدم sifodz..."
+if id "sifodz" &>/dev/null; then
+    echo "المستخدم موجود مسبقًا"
+else
+    useradd -m -s /bin/bash sifodz
+    echo "sifodz:sssddd333" | chpasswd
+fi
+
+echo "🔑 إضافة المستخدم إلى sudo..."
+usermod -aG sudo sifodz
+
+echo "🛠️ إعداد SSH..."
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+systemctl restart ssh
+systemctl enable ssh
+
+echo "🌐 تشغيل Apache..."
+systemctl enable apache2
+systemctl start apache2
+
+echo "📄 إنشاء صفحة رئيسية..."
+cat <<EOF > /var/www/html/index.html
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>VPS Online</title>
+<style>
+body {
+  background:#020617;
+  color:#22d3ee;
+  font-family:monospace;
+  text-align:center;
+  padding-top:50px;
+}
+.box {
+  border:2px solid #22d3ee;
+  display:inline-block;
+  padding:25px;
+}
+</style>
+</head>
+<body>
+<div class="box">
+<h1>✅ VPS يعمل بنجاح</h1>
+<p>SSH USER: sifodz</p>
+<p>SSH PASS: sssddd333</p>
+<p>Python + PHP Installed</p>
+<p>Cloudflare Tunnel Active</p>
+</div>
+</body>
+</html>
+EOF
+
+chmod 644 /var/www/html/index.html
+
+echo "☁️ تثبيت Cloudflare Tunnel..."
+wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+dpkg -i cloudflared-linux-amd64.deb
+
+echo "🚀 تشغيل Cloudflare Tunnel المجاني..."
+tmux new-session -d -s cloudflare "cloudflared tunnel --url http://localhost:80 --no-autoupdate > /tmp/cloudflare.log 2>&1"
+
+sleep 8
+
+CLOUD_URL=$(grep -o 'https://.*trycloudflare.com' /tmp/cloudflare.log | head -n 1)
+IP=$(curl -s ifconfig.me)
+
+echo "=========================================="
+echo "✅ تم إعداد الـ VPS بنجاح"
+echo ""
+echo "🌍 الرابط المحلي:"
+echo "http://$IP"
+echo ""
+echo "☁️ رابط Cloudflare العام (مجاني):"
+echo "$CLOUD_URL"
+echo ""
+echo "🔐 SSH (من Termux):"
+echo "ssh sifodz@$IP"
+echo "Password: sssddd333"
+echo "=========================================="
